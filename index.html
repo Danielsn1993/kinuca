@@ -1,0 +1,1874 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Jogo de Sinuca</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            background: #2d4a32;
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            color: white;
+        }
+
+        .game-header {
+            display: flex;
+            justify-content: space-between;
+            width: 920px;
+            margin-bottom: 5px;
+            font-size: 18px;
+            font-weight: bold;
+        }
+
+        .score-info {
+            display: flex;
+            gap: 30px;
+        }
+
+        canvas {
+            border: 2px solid #333;
+            border-radius: 15px;
+            background: #8B4513;
+            cursor: crosshair;
+        }
+
+        .controls {
+            margin-top: 20px;
+            text-align: center;
+        }
+
+        .power-bar {
+            width: 400px;
+            height: 20px;
+            background: #333;
+            border: 2px solid #fff;
+            margin: 10px auto;
+            border-radius: 10px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .power-fill {
+            height: 100%;
+            background: linear-gradient(to right, #00ff00, #ffff00, #ff0000);
+            width: 0%;
+            transition: width 0.1s;
+        }
+
+        .instructions {
+            margin-top: 20px;
+            text-align: center;
+            max-width: 700px;
+            line-height: 1.6;
+        }
+
+        .ball-legend {
+            display: flex;
+            gap: 15px;
+            margin-top: 15px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .ball-info {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .legend-ball {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+        }
+
+        .target-ball {
+            font-weight: bold;
+            font-size: 18px;
+            margin-top: 15px;
+            padding: 10px;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 8px;
+        }
+
+        .bonus-round {
+            background: rgba(128, 128, 128, 0.3) !important;
+            border: 2px solid #888;
+        }
+
+        .mandatory-target {
+            background: rgba(255, 69, 0, 0.4) !important;
+            border: 2px solid #ff4500;
+            animation: pulse 1.5s infinite;
+        }
+
+        @keyframes pulse {
+            0% { box-shadow: 0 0 0 0 rgba(255, 69, 0, 0.7); }
+            70% { box-shadow: 0 0 0 10px rgba(255, 69, 0, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(255, 69, 0, 0); }
+        }
+
+        .game-over {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.9);
+            padding: 30px;
+            border-radius: 15px;
+            text-align: center;
+            display: none;
+        }
+
+        button {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            margin-top: 15px;
+        }
+
+        button:hover {
+            background: #45a049;
+        }
+
+        .penalty {
+            color: #ff4444;
+            font-weight: bold;
+        }
+
+        .bonus {
+            color: #ffd700;
+            font-weight: bold;
+        }
+
+        .initial-position {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.9);
+            padding: 30px;
+            border-radius: 15px;
+            text-align: center;
+            display: none;
+            z-index: 1000;
+        }
+    </style>
+</head>
+<body>
+    <div class="initial-position" id="initialPosition">
+        <h2>Posicione a Bola Branca</h2>
+        <p>Escolha a posição inicial da bola branca dentro do semicírculo</p>
+        <button onclick="startPositioning()">Ok</button>
+    </div>
+
+    <div class="game-header">
+        <div class="score-info">
+            <div>Pontuação: <span id="score">0</span></div>
+            <div>Tempo: <span id="timer">00:00</span></div>
+            <div>Bola da vez: <canvas id="ballIndicator" width="25" height="25" style="vertical-align: middle; margin-left: 10px;"></canvas></div>
+        </div>
+        <div class="power-section">
+            <div>Força da tacada:</div>
+            <div class="power-bar">
+                <div class="power-fill" id="powerFill"></div>
+                <div class="power-calculated-line" id="powerCalculatedLine"></div>
+            </div>
+        </div>
+    </div>
+
+    <canvas id="gameCanvas" width="920" height="460"></canvas>
+
+    <div class="controls">
+        <div>Clique e segure o botão esquerdo para aumentar a força • Solte para disparar</div>
+        <div>Segure o botão direito para ver a previsão de trajetória</div>
+        <div class="target-ball" id="targetBallContainer">
+            Próxima bola: <span id="targetBall">Vermelha (1 ponto)</span>
+        </div>
+    </div>
+
+    <div class="ball-legend">
+        <div class="ball-info">
+            <div class="legend-ball" style="background: #ff0000;"></div>
+            <span>Vermelha (1pt)</span>
+        </div>
+        <div class="ball-info">
+            <div class="legend-ball" style="background: #ffff00;"></div>
+            <span>Amarela (2pts)</span>
+        </div>
+        <div class="ball-info">
+            <div class="legend-ball" style="background: #00ff00;"></div>
+            <span>Verde (3pts)</span>
+        </div>
+        <div class="ball-info">
+            <div class="legend-ball" style="background: #8B4513;"></div>
+            <span>Marrom (4pts)</span>
+        </div>
+        <div class="ball-info">
+            <div class="legend-ball" style="background: #0000ff;"></div>
+            <span>Azul (5pts)</span>
+        </div>
+        <div class="ball-info">
+            <div class="legend-ball" style="background: #ff69b4;"></div>
+            <span>Rosa (6pts)</span>
+        </div>
+        <div class="ball-info">
+            <div class="legend-ball" style="background: #000000;"></div>
+            <span>Preta (7pts)</span>
+        </div>
+    </div>
+
+    <div class="instructions">
+        <strong>Regras do Jogo:</strong><br>
+        • <strong>Posicionamento inicial:</strong> Posicione a bola branca dentro da área "D"<br>
+        • <strong>Primeira tacada especial:</strong> Você tem 3 tentativas para tocar ou encaçapar a bola vermelha (sem penalidades)<br>
+        • <strong>Sequência obrigatória:</strong> Encaçape as bolas na ordem (1-7 pontos)<br>
+        • <strong>Contato direto:</strong> A bola branca deve tocar diretamente na bola da vez<br>
+        • <strong class="bonus">Rodada bônus:</strong> Ao encaçapar a bola da vez, ganhe uma jogada livre. Ganha pontos apenas com contato direto em UMA bola!<br>
+        • <strong>Estratégia arriscada:</strong> Tente bolas de maior valor para mais pontos (se errar: -7 pontos)<br>
+        • <strong style="color: #ff4500;">IMPORTANTE:</strong> Após estratégia arriscada, você DEVE acertar a bola da vez na próxima tacada<br>
+        • <strong>Penalidades (-7 pontos):</strong> Não tocar em nenhuma bola • Tocar em bola errada primeiro • Contato indireto • Múltiplas bolas encaçapadas • Embalo acidental • Não acertar bola obrigatória<br>
+        <br>
+        <button onclick="resetGame()" style="background: #ff4444;">🔄 REINICIAR JOGO</button>
+        <div style="margin-top: 10px; font-size: 12px; color: #ccc;">
+            <span style="color: #87CEEB;">🔄 Bolas retornam automaticamente para posições livres (prioridade: preta→rosa→azul→marrom→verde→amarela→vermelha)</span><br>
+            <span style="color: #ffaa00;">🎯 Segure botão direito para ver previsão de trajetória em tempo real</span>
+        </div>
+    </div>
+
+    <div class="game-over" id="gameOver">
+        <h2>Parabéns!</h2>
+        <p>Você encaçapou todas as bolas!</p>
+        <p>Tempo final: <span id="finalTime"></span></p>
+        <p>Pontuação final: <span id="finalScore"></span></p>
+        <button onclick="resetGame()">Jogar Novamente</button>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        // Game state
+        let gameStarted = false;
+        let gameFinished = false;
+        let positioning = true;
+        let activePositioning = false;
+        let bonusRound = false;
+        let mustHitTargetNext = false;
+        let firstTurnAttempts = 0;
+        let firstTurnComplete = false;
+        let startTime = null;
+        let score = 0;
+        let power = 0;
+        let isPowerBuilding = false;
+        let aimLine = { start: null, end: null };
+        let mousePos = { x: 0, y: 0 };
+        let targetBallOrder = 1;
+        let firstBallTouched = null;
+        let ballsPottedThisTurn = [];
+        let shotInProgress = false;
+        let turnEndScheduled = false;
+        let shotStartTime = null;
+        let remainingShots = 3;
+        let whiteBallPottedThisTurn = false;
+
+        // Trajectory prediction state
+        let trajectoryPreviewActive = false;
+        let rightMouseDown = false;
+        let predictedTrajectory = [];
+        let customPreviewPower = 50;
+
+        // Physics constants
+        const FRICTION = 0.98;
+        const BOUNCE_DAMPING = 0.8;
+        const MIN_SPEED = 0.05;
+
+        // Initial ball positions
+        const initialPositions = [
+            { x: 172.5, y: 230, color: '#ffffff', points: 0, isWhite: true },
+            { x: 747.5, y: 322, color: '#ff0000', points: 1 },
+            { x: 230, y: 322, color: '#ffff00', points: 2 },
+            { x: 230, y: 138, color: '#00ff00', points: 3 },
+            { x: 230, y: 230, color: '#8B4513', points: 4 },
+            { x: 460, y: 230, color: '#0000ff', points: 5 },
+            { x: 690, y: 230, color: '#ff69b4', points: 6 },
+            { x: 805, y: 230, color: '#000000', points: 7 },
+        ];
+
+        // Pockets positions
+        const pockets = [
+            { x: 28.75, y: 28.75, radius: 24.15, name: "Superior Esquerda"},
+            { x: 460, y: 28.75, radius: 24.15, name: "Superior Centro" },
+            { x: 891.25, y: 28.75, radius: 24.15, name: "Superior Direita" },
+            { x: 28.75, y: 431.25, radius: 24.15, name: "Inferior Esquerda" },
+            { x: 460, y: 431.25, radius: 24.15, name: "Inferior Centro" },
+            { x: 891.25, y: 431.25, radius: 24.15, name: "Inferior Direita" }
+        ];
+
+        // Check if point is inside D area
+        function isInsideD(x, y) {
+            const centerX = 230;
+            const centerY = canvas.height / 2;
+            const radius = 92;
+            
+            if (x <= centerX) {
+                const dx = x - centerX;
+                const dy = y - centerY;
+                return (dx * dx + dy * dy) <= (radius * radius);
+            }
+            return false;
+        }
+
+        // Calculate line intersection with table edges
+        function calculateLineToTableEdge(startX, startY, mouseX, mouseY) {
+            const dx = mouseX - startX;
+            const dy = mouseY - startY;
+            
+            if (dx === 0 && dy === 0) return { x: startX, y: startY };
+            
+            // Table boundaries
+            const minX = 28.75;
+            const maxX = 891.25;
+            const minY = 28.75;
+            const maxY = 431.25;
+            
+            // Calculate intersections
+            let intersections = [];
+            
+            // Left edge intersection (x = minX)
+            if (dx !== 0) {
+                const t = (minX - startX) / dx;
+                if (t > 0) {
+                    const y = startY + t * dy;
+                    if (y >= minY && y <= maxY) {
+                        intersections.push({ x: minX, y: y, t: t });
+                    }
+                }
+            }
+            
+            // Right edge intersection (x = maxX)
+            if (dx !== 0) {
+                const t = (maxX - startX) / dx;
+                if (t > 0) {
+                    const y = startY + t * dy;
+                    if (y >= minY && y <= maxY) {
+                        intersections.push({ x: maxX, y: y, t: t });
+                    }
+                }
+            }
+            
+            // Top edge intersection (y = minY)
+            if (dy !== 0) {
+                const t = (minY - startY) / dy;
+                if (t > 0) {
+                    const x = startX + t * dx;
+                    if (x >= minX && x <= maxX) {
+                        intersections.push({ x: x, y: minY, t: t });
+                    }
+                }
+            }
+            
+            // Bottom edge intersection (y = maxY)
+            if (dy !== 0) {
+                const t = (maxY - startY) / dy;
+                if (t > 0) {
+                    const x = startX + t * dx;
+                    if (x >= minX && x <= maxX) {
+                        intersections.push({ x: x, y: maxY, t: t });
+                    }
+                }
+            }
+            
+            // Return closest intersection
+            if (intersections.length > 0) {
+                intersections.sort((a, b) => a.t - b.t);
+                return { x: intersections[0].x, y: intersections[0].y };
+            }
+            
+            // Fallback to mouse position
+            return { x: mouseX, y: mouseY };
+        }
+
+        // Trajectory prediction functions
+        function predictTrajectory(startX, startY, velX, velY, maxSteps = 2000) {
+            const trajectory = [];
+            const ballRadius = 13.8;
+            let x = startX, y = startY, vx = velX, vy = velY;
+            let step = 0;
+            
+            // Table boundaries
+            const minX = 28.75 + ballRadius;
+            const maxX = 891.25 - ballRadius;
+            const minY = 28.75 + ballRadius;
+            const maxY = 431.25 - ballRadius;
+            
+            while (step < maxSteps && (Math.abs(vx) > MIN_SPEED || Math.abs(vy) > MIN_SPEED)) {
+                // Store current position
+                trajectory.push({ x: x, y: y, vx: vx, vy: vy });
+                
+                // Update position
+                x += vx;
+                y += vy;
+                
+                // Apply friction
+                vx *= FRICTION;
+                vy *= FRICTION;
+                
+                // Wall collisions
+                if (x <= minX || x >= maxX) {
+                    vx *= -BOUNCE_DAMPING;
+                    x = Math.max(minX, Math.min(maxX, x));
+                    trajectory.push({ x: x, y: y, vx: vx, vy: vy, bounce: true });
+                }
+                if (y <= minY || y >= maxY) {
+                    vy *= -BOUNCE_DAMPING;
+                    y = Math.max(minY, Math.min(maxY, y));
+                    trajectory.push({ x: x, y: y, vx: vx, vy: vy, bounce: true });
+                }
+                
+                // Check for ball collisions
+                for (let ball of balls) {
+                    if (ball.isWhite || ball.inPocket) continue;
+                    
+                    const dx = x - ball.x;
+                    const dy = y - ball.y;
+                    const distance = Math.sqrt(dx * dx + dy * dy);
+                    
+                    if (distance <= ballRadius * 2) {
+                        // Collision detected
+                        const nx = dx / distance;
+                        const ny = dy / distance;
+                        
+                        // Calculate collision response
+                        const relativeVx = vx;
+                        const relativeVy = vy;
+                        const speed = nx * relativeVx + ny * relativeVy;
+                        
+                        if (speed < 0) {
+                            // New velocities after collision
+                            const newVx = vx - speed * nx;
+                            const newVy = vy - speed * ny;
+                            
+                            // Ball velocity after being hit
+                            const ballVx = speed * nx;
+                            const ballVy = speed * ny;
+                            
+                            return {
+                                whiteBallTrajectory: trajectory,
+                                collisionPoint: { x: x, y: y },
+                                hitBall: ball,
+                                hitBallTrajectory: predictTrajectory(ball.x, ball.y, ballVx, ballVy, 1000),
+                                whiteBallContinues: Math.abs(newVx) > MIN_SPEED || Math.abs(newVy) > MIN_SPEED ? 
+                                    predictTrajectory(x, y, newVx, newVy, 1000) : []
+                            };
+                        }
+                    }
+                }
+                
+                // Check pocket collisions
+                for (let pocket of pockets) {
+                    const dx = x - pocket.x;
+                    const dy = y - pocket.y;
+                    const distance = Math.sqrt(dx * dx + dy * dy);
+                    
+                    if (distance < pocket.radius) {
+                        trajectory.push({ x: pocket.x, y: pocket.y, potted: true });
+                        return {
+                            whiteBallTrajectory: trajectory,
+                            whiteBallPotted: true
+                        };
+                    }
+                }
+                
+                step++;
+            }
+            
+            return {
+                whiteBallTrajectory: trajectory
+            };
+        }
+
+        function calculateTrajectoryPreview() {
+            if (!rightMouseDown || !aimLine.start || !aimLine.end) {
+                predictedTrajectory = [];
+                return;
+            }
+            
+            const dx = aimLine.end.x - aimLine.start.x;
+            const dy = aimLine.end.y - aimLine.start.y;
+            const distance = Math.sqrt(dx * dx + dy * dy);
+            
+            if (distance === 0) {
+                predictedTrajectory = [];
+                return;
+            }
+            
+            // Always use 80% power for trajectory preview
+            const previewPower = customPreviewPower;
+            const forceMultiplier = previewPower * 0.3;
+            const velX = (dx / distance) * forceMultiplier;
+            const velY = (dy / distance) * forceMultiplier;
+            
+            predictedTrajectory = predictTrajectory(whiteBall().x, whiteBall().y, velX, velY);
+        }
+
+        // Ball class
+        class Ball {
+            constructor(x, y, color, points = 0, isWhite = false) {
+                this.x = x;
+                this.y = y;
+                this.vx = 0;
+                this.vy = 0;
+                this.radius = 13.8;
+                this.color = color;
+                this.points = parseInt(points);
+                this.isWhite = isWhite;
+                this.inPocket = false;
+                this.originalX = x;
+                this.originalY = y;
+            }
+
+            update() {
+                if (this.inPocket) {
+                    this.vx = 0;
+                    this.vy = 0;
+                    return;
+                }
+
+                this.x += this.vx;
+                this.y += this.vy;
+
+                // Apply friction
+                this.vx *= FRICTION;
+                this.vy *= FRICTION;
+
+                // Stop if moving too slowly
+                if (Math.abs(this.vx) < MIN_SPEED && Math.abs(this.vy) < MIN_SPEED) {
+                    this.vx = 0;
+                    this.vy = 0;
+                }
+
+                // Wall collisions
+                if (this.x - this.radius <= 28.75 || this.x + this.radius >= canvas.width - 28.75) {
+                    this.vx *= -BOUNCE_DAMPING;
+                    this.x = Math.max(28.75 + this.radius, Math.min(canvas.width - 28.75 - this.radius, this.x));
+                }
+                if (this.y - this.radius <= 28.75 || this.y + this.radius >= canvas.height - 28.75) {
+                    this.vy *= -BOUNCE_DAMPING;
+                    this.y = Math.max(28.75 + this.radius, Math.min(canvas.height - 28.75 - this.radius, this.y));
+                }
+
+                // Check pocket collisions
+                for (let pocket of pockets) {
+                    const dx = this.x - pocket.x;
+                    const dy = this.y - pocket.y;
+                    const distance = Math.sqrt(dx * dx + dy * dy);
+                    
+                    if (distance < pocket.radius) {
+                        this.inPocket = true;
+
+                        // ADICIONE ESTAS LINHAS:
+                        this.vx = 0;
+                        this.vy = 0;
+
+                        if (!this.isWhite && !gameFinished) {
+                            ballsPottedThisTurn.push(this);
+                            console.log(`🎱 BALL POTTED: Ball ${this.points} went into pocket`);
+                        } else if (this.isWhite) {
+                            console.log(`🚨 WHITE BALL POTTED! Setting inPocket=true`);
+                        }
+                        break;
+                    }
+                }
+            }
+
+            draw() {
+                if (this.inPocket) return;
+
+                // Set default opacity
+                ctx.globalAlpha = 1.0;
+                
+                // Apply special transparency only for white ball during positioning
+                if (this.isWhite && activePositioning) {
+                    ctx.globalAlpha = isInsideD(this.x, this.y) ? 1.0 : 0.5;
+                }
+
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                ctx.fillStyle = this.color;
+                ctx.fill();
+
+                // Add shine effect
+                ctx.beginPath();
+                ctx.arc(this.x - 4, this.y - 4, 4, 0, Math.PI * 2);
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
+                ctx.fill();
+                
+                // Always reset opacity at the end
+                ctx.globalAlpha = 1.0;
+            }
+
+            collidesWith(other) {
+                if (this.inPocket || other.inPocket) return false;
+                
+                const dx = this.x - other.x;
+                const dy = this.y - other.y;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+                return distance < (this.radius + other.radius);
+            }
+
+            resolveCollision(other) {
+                const dx = other.x - this.x;
+                const dy = other.y - this.y;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+                
+                if (distance === 0) return;
+
+                if (shotInProgress && firstBallTouched === null) {
+                    let touchedBall = null;
+                    
+                    if (this.isWhite && !other.isWhite && !other.inPocket) {
+                        touchedBall = other.points;
+                    } else if (other.isWhite && !this.isWhite && !this.inPocket) {
+                        touchedBall = this.points;
+                    }
+                    
+                    if (touchedBall !== null) {
+                        firstBallTouched = parseInt(touchedBall);
+                        console.log(`🎯 FIRST BALL CONTACT: White ball touched ball ${firstBallTouched}`);
+                    }
+                }
+
+                // Physics calculations
+                const nx = dx / distance;
+                const ny = dy / distance;
+
+                const overlap = (this.radius + other.radius) - distance;
+                this.x -= nx * overlap * 0.5;
+                this.y -= ny * overlap * 0.5;
+                other.x += nx * overlap * 0.5;
+                other.y += ny * overlap * 0.5;
+
+                const dvx = other.vx - this.vx;
+                const dvy = other.vy - this.vy;
+                const dvn = dvx * nx + dvy * ny;
+
+                if (dvn > 0) return;
+
+                const impulse = 2 * dvn / 2;
+                this.vx += impulse * nx;
+                this.vy += impulse * ny;
+                other.vx -= impulse * nx;
+                other.vy -= impulse * ny;
+            }
+
+            returnToOriginalPosition() {
+                console.log(`🔄 Attempting to return ball ${this.points} to original position`);
+                
+                // Find a safe position to return the ball
+                const originalX = this.originalX;
+                const originalY = this.originalY;
+                
+                // Check if original position is occupied
+                const occupiedPositions = balls.filter(ball => 
+                    !ball.inPocket && ball !== this && 
+                    Math.sqrt((ball.x - originalX) ** 2 + (ball.y - originalY) ** 2) < 30
+                );
+                
+                if (occupiedPositions.length === 0) {
+                    // Original position is free
+                    this.x = originalX;
+                    this.y = originalY;
+                    console.log(`✅ Ball ${this.points} returned to original position (${originalX}, ${originalY})`);
+                } else {
+                    // Original position occupied, find alternative position
+                    const ballOrder = [7, 6, 5, 4, 3, 2, 1]; // Priority order: black -> pink -> blue -> brown -> green -> yellow -> red
+                    const ballPositions = {
+                        1: { x: 747.5, y: 322 },   // Red
+                        2: { x: 230, y: 322 },     // Yellow  
+                        3: { x: 230, y: 138 },     // Green
+                        4: { x: 230, y: 230 },     // Brown
+                        5: { x: 460, y: 230 },     // Blue
+                        6: { x: 690, y: 230 },     // Pink
+                        7: { x: 805, y: 230 }      // Black
+                    };
+                    
+                    let alternativeFound = false;
+                    
+                    // Try positions in priority order (start from current ball and go backwards)
+                    const startIndex = ballOrder.indexOf(this.points);
+                    for (let i = startIndex; i < ballOrder.length; i++) {
+                        const ballNumber = ballOrder[i];
+                        const pos = ballPositions[ballNumber];
+                        
+                        const occupied = balls.filter(ball => 
+                            !ball.inPocket && ball !== this && 
+                            Math.sqrt((ball.x - pos.x) ** 2 + (ball.y - pos.y) ** 2) < 30
+                        );
+                        
+                        if (occupied.length === 0) {
+                            this.x = pos.x;
+                            this.y = pos.y;
+                            console.log(`🔄 Ball ${this.points} returned to alternative position of ball ${ballNumber} (${pos.x}, ${pos.y})`);
+                            alternativeFound = true;
+                            break;
+                        }
+                    }
+                    
+                    if (!alternativeFound) {
+                        // If no standard position is available, place near the D area
+                        this.x = 300 + Math.random() * 100;
+                        this.y = 200 + Math.random() * 60;
+                        console.log(`⚠️ Ball ${this.points} placed at emergency position (${this.x}, ${this.y})`);
+                    }
+                }
+                
+                this.vx = 0;
+                this.vy = 0;
+                this.inPocket = false;
+            }
+        }
+
+        // Initialize balls
+        let balls = [];
+        function initializeBalls() {
+            balls = [];
+            for (let pos of initialPositions) {
+                const ball = new Ball(pos.x, pos.y, pos.color, pos.points, pos.isWhite);
+                balls.push(ball);
+            }
+        }
+
+        const whiteBall = () => balls[0];
+
+        // Helper function to handle losing a heart
+        function loseHeart(reason) {
+            if (!bonusRound && firstTurnComplete) {
+                remainingShots--;
+                console.log(`💔 Perdeu coração: ${reason} - Restam ${remainingShots} corações`);
+                
+                // Force a draw to show the heart disappearing
+                updateUI();
+                draw();
+                
+                if (remainingShots <= 0) {
+                    console.log(`💀 GAME OVER: Sem corações restantes!`);
+                    setTimeout(() => {
+                        alert('Game Over! Você ficou sem corações.');
+                        resetGame();
+                    }, 100);
+                    return true; // Game over
+                }
+            }
+            return false; // Continue game
+        }
+
+        // Game turn processing function (keeping original logic)
+        function processGameTurn() {
+            if (turnEndScheduled) {
+                console.log(`⚠️ Turn already scheduled, skipping`);
+                return;
+            }
+            
+            turnEndScheduled = true;
+            console.log(`🎯 === PROCESSANDO TURNO ===`);
+            
+            console.log(`🔍 Estado: firstTurnComplete=${firstTurnComplete}, targetBallOrder=${targetBallOrder}, attempts=${firstTurnAttempts}`);
+            
+            const previousScore = score;
+            const isFirstTurnPhase = !firstTurnComplete && targetBallOrder === 1;
+            const whiteBallPotted = whiteBall().inPocket;
+            let processAsNormalGame = false;
+            
+            console.log(`🔍 Verificação: isFirstTurnPhase=${isFirstTurnPhase}, whiteBallPotted=${whiteBallPotted}, firstBallTouched=${firstBallTouched}`);
+            
+            // First turn has absolute priority
+            if (isFirstTurnPhase) {
+                firstTurnAttempts++;
+                console.log(`🥇 PRIMEIRA TACADA: Tentativa ${firstTurnAttempts}/3`);
+                
+                if (whiteBallPotted && firstTurnAttempts < 3) {
+                    console.log(`🔄 BOLA BRANCA ENCAÇAPADA na tentativa ${firstTurnAttempts}/3 - continua sem penalidade`);
+                    
+                    // RESETAR TODAS as bolas coloridas para posições originais (não só as encaçapadas)
+                    console.log(`🔄 Primeiras 3 tentativas: Resetando TODAS as bolas coloridas para posições originais`);
+                    for (let ball of balls) {
+                        if (!ball.isWhite) { // Se não for a bola branca
+                            ball.x = ball.originalX;
+                            ball.y = ball.originalY;
+                            ball.vx = 0;
+                            ball.vy = 0;
+                            ball.inPocket = false;
+                            console.log(`🔄 Ball ${ball.points} reset to (${ball.originalX}, ${ball.originalY})`);
+                        }
+                    }
+                    
+                    whiteBall().x = 172.5;
+                    whiteBall().y = 230;
+                    whiteBall().vx = 0;
+                    whiteBall().vy = 0;
+                    whiteBall().inPocket = false;
+                    showWhiteBallPositioning(false);
+                    
+                    ballsPottedThisTurn = [];
+                    firstBallTouched = null;
+                    shotInProgress = false;
+                    turnEndScheduled = false;
+                    updateUI();
+                    updateTargetBall();
+                    return;
+                }
+
+                if (firstBallTouched === 1) {
+                    console.log(`🎯 TOCOU NA VERMELHA! Verificando se encaçapou outras bolas...`);
+                    
+                    // Verificar se encaçapou apenas a vermelha ou outras bolas também
+                    const redBallPotted = ballsPottedThisTurn.some(ball => ball.points === 1);
+                    const otherBallsPotted = ballsPottedThisTurn.filter(ball => ball.points !== 1);
+                    
+                    if (otherBallsPotted.length > 0) {
+                        // Tocou na vermelha mas encaçapou outras bolas coloridas
+                        console.log(`🔄 TOCOU VERMELHA mas encaçapou outras bolas: ${otherBallsPotted.map(b => b.points).join(', ')} - TENTATIVA VÁLIDA sem penalidade`);
+                        
+                        // Retornar todas as bolas encaçapadas (incluindo a vermelha se foi encaçapada)
+                        for (let ball of ballsPottedThisTurn) {
+                            console.log(`📤 Retornando bola ${ball.points} para posição original`);
+                            ball.returnToOriginalPosition();
+                        }
+                        
+                        if (whiteBallPotted) {
+                            console.log(`🔄 Reposicionando bola branca`);
+                            whiteBall().x = 172.5;
+                            whiteBall().y = 230;
+                            whiteBall().vx = 0;
+                            whiteBall().vy = 0;
+                            whiteBall().inPocket = false;
+                            showWhiteBallPositioning(false);
+                        }
+                        
+                        // NÃO completar a primeira tacada ainda - continua nas tentativas
+                        ballsPottedThisTurn = [];
+                        firstBallTouched = null;
+                        shotInProgress = false;
+                        turnEndScheduled = false;
+                        updateUI();
+                        updateTargetBall();
+                        return;
+                        
+                    } else {
+                        // Tocou na vermelha e só encaçapou a vermelha (ou não encaçapou nada)
+                        console.log(`🎉 SUCESSO! Tocou na vermelha sem encaçapar outras bolas - primeira tacada completa`);
+                        firstTurnComplete = true;
+                        
+                        if (whiteBallPotted) {
+                            console.log(`🥇 Branca encaçapada mas tocou vermelha - reposicionar sem penalidade`);
+                            whiteBall().x = 172.5;
+                            whiteBall().y = 230;
+                            whiteBall().vx = 0;
+                            whiteBall().vy = 0;
+                            whiteBall().inPocket = false;
+                            showWhiteBallPositioning(false);
+                            
+                            ballsPottedThisTurn = [];
+                            firstBallTouched = null;
+                            shotInProgress = false;
+                            turnEndScheduled = false;
+                            updateUI();
+                            updateTargetBall();
+                            return;
+                        } else {
+                            console.log(`🎉 Tocou vermelha sem encaçapar branca - será processado como jogo normal`);
+                            processAsNormalGame = true;
+                            updateTargetBall();
+                        }
+                    }
+                } else if (ballsPottedThisTurn.length > 0 && !processAsNormalGame) {
+                    // Verificar se encaçapou a bola vermelha
+                    const redBallPotted = ballsPottedThisTurn.some(ball => ball.points === 1);
+                    
+                    if (redBallPotted) {
+                        // Verificar se foi contato indireto (tocou colorida primeiro)
+                        if (firstBallTouched !== null && firstBallTouched !== 1) {
+                            if (firstTurnAttempts < 3) {
+                                console.log(`🔄 CONTATO INDIRETO: Tocou bola ${firstBallTouched} primeiro mas encaçapou vermelha - reset completo (tentativa ${firstTurnAttempts}/3)`);
+                                
+                                // RESETAR TODAS as bolas coloridas para posições originais
+                                for (let ball of balls) {
+                                    if (!ball.isWhite) {
+                                        ball.x = ball.originalX;
+                                        ball.y = ball.originalY;
+                                        ball.vx = 0;
+                                        ball.vy = 0;
+                                        ball.inPocket = false;
+                                    }
+                                }
+                                
+                                // Reposicionar bola branca
+                                whiteBall().x = 172.5;
+                                whiteBall().y = 230;
+                                whiteBall().vx = 0;
+                                whiteBall().vy = 0;
+                                whiteBall().inPocket = false;
+                                showWhiteBallPositioning(false, 'indirect');
+                                
+                                ballsPottedThisTurn = [];
+                                firstBallTouched = null;
+                                shotInProgress = false;
+                                turnEndScheduled = false;
+                                updateUI();
+                                updateTargetBall();
+                                return;
+                            } else {
+                                console.log(`💀 CONTATO INDIRETO na 3ª tentativa: Primeira tacada falhada - penalidade`);
+                                firstTurnComplete = true;
+                                score -= 7;
+                                
+                                for (let ball of ballsPottedThisTurn) {
+                                    ball.returnToOriginalPosition();
+                                }
+                                
+                                if (whiteBallPotted) {
+                                    whiteBall().x = 172.5;
+                                    whiteBall().y = 230;
+                                    whiteBall().vx = 0;
+                                    whiteBall().vy = 0;
+                                    whiteBall().inPocket = false;
+                                    showWhiteBallPositioning(false);
+                                }
+                                
+                                ballsPottedThisTurn = [];
+                                firstBallTouched = null;
+                                shotInProgress = false;
+                                turnEndScheduled = false;
+                                updateUI();
+                                updateTargetBall();
+                                
+                                const scoreChange = score - previousScore;
+                                console.log(`📊 RESULTADO PRIMEIRA TACADA: ${scoreChange} pontos`);
+                                return;
+                            }
+                        } else {
+                            // Contato direto na vermelha - encerrar as 3 tentativas
+                            console.log(`🎉 ENCAÇAPOU A VERMELHA! Primeira tacada completa`);
+                            firstTurnComplete = true;
+                            processAsNormalGame = true;
+                            updateTargetBall();
+                        }
+                    } else {
+                        // Se encaçapou outras bolas coloridas, resetar TODAS as bolas
+                        console.log(`🔄 ENCAÇAPOU bola colorida errada (${ballsPottedThisTurn.map(b => b.points).join(', ')}) - RESETANDO TODAS`);
+                        
+                        if (firstTurnAttempts < 3) {
+                            console.log(`🔄 Tentativa ${firstTurnAttempts}/3 - TODAS as bolas retornam, continua tentativas`);
+                            
+                            // RESETAR TODAS as bolas coloridas para posições originais
+                            for (let ball of balls) {
+                                if (!ball.isWhite) {
+                                    ball.x = ball.originalX;
+                                    ball.y = ball.originalY;
+                                    ball.vx = 0;
+                                    ball.vy = 0;
+                                    ball.inPocket = false;
+                                    console.log(`🔄 Ball ${ball.points} reset to (${ball.originalX}, ${ball.originalY})`);
+                                }
+                            }
+                            
+                            // SEMPRE reposicionar a bola branca quando resetar as bolas coloridas
+                            console.log(`🔄 Reposicionando bola branca após reset de bolas coloridas`);
+                            whiteBall().x = 172.5;
+                            whiteBall().y = 230;
+                            whiteBall().vx = 0;
+                            whiteBall().vy = 0;
+                            whiteBall().inPocket = false;
+                            showWhiteBallPositioning(false);
+                            
+                            ballsPottedThisTurn = [];
+                            firstBallTouched = null;
+                            shotInProgress = false;
+                            turnEndScheduled = false;
+                            updateUI();
+                            updateTargetBall();
+                            return;
+                        } else {
+                            console.log(`💀 PRIMEIRA TACADA FALHADA: 3 tentativas usadas - penalidade de 7 pontos`);
+                            firstTurnComplete = true;
+                            score -= 7;
+                            
+                            for (let ball of ballsPottedThisTurn) {
+                                ball.returnToOriginalPosition();
+                            }
+                            
+                            if (whiteBallPotted) {
+                                whiteBall().x = 172.5;
+                                whiteBall().y = 230;
+                                whiteBall().vx = 0;
+                                whiteBall().vy = 0;
+                                whiteBall().inPocket = false;
+                                showWhiteBallPositioning(false);
+                            }
+                            
+                            ballsPottedThisTurn = [];
+                            firstBallTouched = null;
+                            shotInProgress = false;
+                            turnEndScheduled = false;
+                            updateUI();
+                            updateTargetBall();
+                            
+                            const scoreChange = score - previousScore;
+                            console.log(`📊 RESULTADO PRIMEIRA TACADA: ${scoreChange} pontos`);
+                            return;
+                        }
+                    }
+                } else if (firstBallTouched !== null && firstBallTouched !== 1 && !processAsNormalGame) {
+                    console.log(`❌ SÓ ENCOSTOU em bola colorida errada (${firstBallTouched}) SEM ENCAÇAPAR - PRIMEIRA TACADA ACABA`);
+                    firstTurnComplete = true;
+                    score -= 7;
+                    
+                    if (whiteBallPotted) {
+                        whiteBall().x = 172.5;
+                        whiteBall().y = 230;
+                        whiteBall().vx = 0;
+                        whiteBall().vy = 0;
+                        whiteBall().inPocket = false;
+                        showWhiteBallPositioning(false);
+                    }
+                    
+                    ballsPottedThisTurn = [];
+                    firstBallTouched = null;
+                    shotInProgress = false;
+                    turnEndScheduled = false;
+                    updateUI();
+                    updateTargetBall();
+                    
+                    const scoreChange = score - previousScore;
+                    console.log(`📊 PRIMEIRA TACADA FINALIZADA: ${scoreChange} pontos`);
+                    return;
+                } else if (whiteBallPotted && firstTurnAttempts < 3) {
+                    console.log(`🔄 PRIMEIRA TACADA: Bola branca encaçapada, tentativa ${firstTurnAttempts}/3 - continua sem penalidade`);
+                    // Reposicionar e continuar
+                    whiteBall().x = 172.5;
+                    whiteBall().y = 230;
+                    whiteBall().vx = 0;
+                    whiteBall().vy = 0;
+                    whiteBall().inPocket = false;
+                    showWhiteBallPositioning(false);
+                    // Reset e retorna
+                    ballsPottedThisTurn = [];
+                    firstBallTouched = null;
+                    shotInProgress = false;
+                    turnEndScheduled = false;
+                    updateUI();
+                    updateTargetBall();
+                    return;
+                } else {
+                    console.log(`💀 PRIMEIRA TACADA FALHADA: Não tocou em nenhuma bola - penalidade de 7 pontos`);
+                    firstTurnComplete = true;
+                    score -= 7;
+                    
+                    if (whiteBallPotted) {
+                        whiteBall().x = 172.5;
+                        whiteBall().y = 230;
+                        whiteBall().vx = 0;
+                        whiteBall().vy = 0;
+                        whiteBall().inPocket = false;
+                        showWhiteBallPositioning(false);
+                    }
+                    
+                    ballsPottedThisTurn = [];
+                    firstBallTouched = null;
+                    shotInProgress = false;
+                    turnEndScheduled = false;
+                    updateUI();
+                    updateTargetBall();
+                    
+                    const scoreChange = score - previousScore;
+                    console.log(`📊 RESULTADO PRIMEIRA TACADA: ${scoreChange} pontos`);
+                    return;
+                }
+            }
+            
+            // Normal game (only executes after first turn complete OR when touched red ball)
+            if (!isFirstTurnPhase || processAsNormalGame) {
+                console.log(`🎮 PROCESSANDO JOGO NORMAL`);
+            
+                if (whiteBallPotted) {
+                    console.log(`❌ BOLA BRANCA ENCAÇAPADA - penalidade`);
+                    score -= 7;
+                    if (loseHeart("bola branca encaçapada")) return;
+                    
+                    whiteBall().x = 172.5;
+                    whiteBall().y = 230;
+                    whiteBall().vx = 0;
+                    whiteBall().vy = 0;
+                    whiteBall().inPocket = false;
+                    showWhiteBallPositioning(false);
+                    
+                    ballsPottedThisTurn = [];
+                    firstBallTouched = null;
+                    shotInProgress = false;
+                    turnEndScheduled = false;
+                    mustHitTargetNext = false;
+                    updateUI();
+                    updateTargetBall();
+                    
+                    const scoreChange = score - previousScore;
+                    console.log(`📊 RESULTADO: ${scoreChange} pontos`);
+                    return;
+                }
+
+                // Complete normal game logic
+                if (bonusRound) {
+                    console.log(`🎁 PROCESSANDO RODADA BÔNUS`);
+                    if (firstBallTouched === null) {
+                        score -= 7;
+                        // FIXED: Return any potted balls even if no contact was made
+                        for (let ball of ballsPottedThisTurn) {
+                            ball.returnToOriginalPosition();
+                            console.log(`🔄 No contact penalty: Ball ${ball.points} returned to position`);
+                        }
+                        console.log(`❌ BÔNUS: Não tocou em nenhuma bola (-7 pontos)`);
+                    } else if (ballsPottedThisTurn.length === 1) {
+                        const pottedBall = ballsPottedThisTurn[0];
+                        // Only award points if direct contact (firstBallTouched matches potted ball)
+                        if (firstBallTouched === pottedBall.points) {
+                            score += pottedBall.points;
+                            console.log(`🎁 BÔNUS: Contato direto! Bola ${pottedBall.points} retorna à posição (+${pottedBall.points} pontos)`);
+                        } else {
+                            console.log(`🎁 BÔNUS: Contato indireto (tocou ${firstBallTouched}, encaçapou ${pottedBall.points}) - bola retorna, sem pontos`);
+                        }
+                        pottedBall.returnToOriginalPosition();
+                    } else if (ballsPottedThisTurn.length > 1) {
+                        for (let ball of ballsPottedThisTurn) {
+                            ball.returnToOriginalPosition();
+                            console.log(`🔄 Bonus multiple balls: Ball ${ball.points} returned to position`);
+                        }
+                        console.log(`🎁 BÔNUS: Múltiplas bolas encaçapadas - todas retornam, sem pontos`);
+                    }
+                    bonusRound = false;
+                    mustHitTargetNext = false;
+                    updateTargetBall();
+                } else {
+                    console.log(`⚖️ PROCESSANDO REGRAS NORMAIS`);
+
+                    // Check if must hit target ball
+                    if (mustHitTargetNext) {
+                        console.log(`🚨 VERIFICAÇÃO OBRIGATÓRIA: Deve acertar bola ${targetBallOrder}`);
+                        if (firstBallTouched !== targetBallOrder) {
+                            score -= 7;
+                            if (loseHeart("não acertou bola obrigatória")) return;
+                            console.log(`❌ PENALIDADE OBRIGATÓRIA: Deveria acertar ${targetBallOrder}, mas acertou ${firstBallTouched || 'nenhuma'} (-7 pontos)`);
+                            for (let ball of ballsPottedThisTurn) {
+                                ball.returnToOriginalPosition();
+                                console.log(`🔄 Mandatory penalty: Ball ${ball.points} returned to position`);
+                            }
+                            mustHitTargetNext = false;
+                            updateTargetBall();
+                        } else {
+                            console.log(`✅ OBRIGAÇÃO CUMPRIDA: Acertou bola ${targetBallOrder}`);
+                            mustHitTargetNext = false;
+                            
+                            // NOVA LÓGICA: Verificar se também encaçapou a bola da vez
+                            if (ballsPottedThisTurn.length === 1) {
+                                const pottedBall = ballsPottedThisTurn[0];
+                                const potted = parseInt(pottedBall.points);
+                                const target = parseInt(targetBallOrder);
+                                
+                                if (potted === target) {
+                                    // Encaçapou a bola da vez após cumprir obrigação - sucesso completo!
+                                    score += potted;
+                                    targetBallOrder = target + 1;
+                                    bonusRound = true;
+                                    remainingShots = 3; // Reset shots when advancing to next target
+                                    console.log(`🏆 OBRIGAÇÃO + SUCESSO: Bola da vez encaçapada! +${potted} pontos + rodada bônus`);
+                                    updateTargetBall();
+                                } else {
+                                    // Tocou a bola correta mas encaçapou outra - embalo
+                                    score -= 7;
+                                    pottedBall.returnToOriginalPosition();
+                                    console.log(`❌ OBRIGAÇÃO CUMPRIDA mas embalo: Tocou ${target}, encaçapou ${potted} (-7 pontos)`);
+                                }
+                            } else if (ballsPottedThisTurn.length > 1) {
+                                // Múltiplas bolas encaçapadas
+                                score -= 7;
+                                for (let ball of ballsPottedThisTurn) {
+                                    ball.returnToOriginalPosition();
+                                    console.log(`🔄 Mandatory multiple balls: Ball ${ball.points} returned to position`);
+                                }
+                                console.log(`❌ OBRIGAÇÃO CUMPRIDA mas múltiplas bolas encaçapadas (-7 pontos)`);
+                            } else {
+                                // Só tocou, não encaçapou nada - obrigação cumprida sem mais consequências
+                                console.log(`✅ OBRIGAÇÃO CUMPRIDA: Só tocou na bola ${targetBallOrder}, sem encaçapar`);
+                                // NEW: Lose heart for not potting any ball (neither target nor colored)
+                                if (loseHeart("tocou bola obrigatória mas não encaçapou nenhuma")) return;
+                            }
+                            
+                            updateTargetBall();
+                        }
+                    } else {
+                        // Normal game logic - CORRIGIDO: Perder coração apenas quando não encaçapa NENHUMA bola
+                        if (ballsPottedThisTurn.length === 0) {
+                            // No ball potted - SEMPRE perde coração quando não encaçapa nenhuma bola
+                            if (firstBallTouched === null) {
+                                score -= 7;
+                                if (loseHeart("não tocou em nenhuma bola")) return;
+                                console.log(`❌ PENALIDADE: Não tocou em nenhuma bola (-7 pontos)`);
+                            } else if (firstBallTouched !== targetBallOrder) {
+                                score -= 7;
+                                if (loseHeart("tocou bola errada e não encaçapou nenhuma")) return;
+                                console.log(`❌ PENALIDADE: Tocou bola errada primeiro (${firstBallTouched} em vez de ${targetBallOrder}) e não encaçapou (-7 pontos)`);
+                            } else {
+                                // CORRIGIDO: Tocou bola da vez mas não encaçapou - perde coração
+                                console.log(`🔶 TACADA INCOMPLETA: Tocou bola da vez (${targetBallOrder}) mas não encaçapou`);
+                                if (loseHeart("tocou bola da vez mas não encaçapou nenhuma")) return;
+                            }
+                        } else if (ballsPottedThisTurn.length === 1) {
+                            // One ball potted - NÃO perde coração quando encaçapa alguma bola
+                            const pottedBall = ballsPottedThisTurn[0];
+                            const potted = parseInt(pottedBall.points);
+                            const target = parseInt(targetBallOrder);
+                            const first = parseInt(firstBallTouched);
+                            
+                            console.log(`🔍 ANÁLISE: Encaçapou ${potted}, alvo ${target}, tocou ${first}`);
+                            
+                            if (potted === target && first === target) {
+                                // Success: target ball potted with direct contact - NÃO perde coração
+                                score += potted;
+                                targetBallOrder = target + 1;
+                                bonusRound = true;
+                                remainingShots = 3; // Reset shots when advancing to next target
+                                console.log(`🏆 SUCESSO: Bola da vez encaçapada! +${potted} pontos + rodada bônus`);
+                                updateTargetBall();
+                            } else if (first === potted && first !== target) {
+                                // Risky strategy: direct contact with non-target ball - NÃO perde coração
+                                score += potted;
+                                pottedBall.returnToOriginalPosition();
+                                mustHitTargetNext = true;
+                                console.log(`🎯 ESTRATÉGIA ARRISCADA: +${potted} pontos, bola retorna à posição, DEVE acertar ${target} na próxima`);
+                                updateTargetBall();
+                            } else if (first === target && potted !== target) {
+                                // Fluke: touched target ball but potted another - perde coração por embalo
+                                score -= 7;
+                                if (loseHeart("embalo - tocou bola da vez mas encaçapou outra")) return;
+                                pottedBall.returnToOriginalPosition();
+                                console.log(`❌ EMBALO: Tocou bola da vez mas encaçapou ${potted} - bola retorna (-7 pontos)`);
+                            } else {
+                                // Other situations: indirect contact, wrong ball potted, etc. - perde coração
+                                score -= 7;
+                                if (loseHeart("situação irregular")) return;
+                                pottedBall.returnToOriginalPosition();
+                                console.log(`❌ PENALIDADE: Situação irregular - bola ${potted} retorna (-7 pontos)`);
+                            }
+                        } else {
+                            // Multiple balls potted - perde coração
+                            score -= 7;
+                            if (loseHeart("múltiplas bolas encaçapadas")) return;
+                            for (let ball of ballsPottedThisTurn) {
+                                ball.returnToOriginalPosition();
+                                console.log(`🔄 Multiple balls potted: Ball ${ball.points} returned to position`);
+                            }
+                            console.log(`❌ PENALIDADE: Múltiplas bolas encaçapadas - todas retornam (-7 pontos)`);
+                        }
+                    }
+                }
+
+                // Final reset
+                ballsPottedThisTurn = [];
+                firstBallTouched = null;
+                shotInProgress = false;
+                turnEndScheduled = false;
+                
+                updateUI();
+                checkWin();
+                
+                const scoreChange = score - previousScore;
+                console.log(`📊 RESULTADO FINAL: ${scoreChange > 0 ? '+' : ''}${scoreChange} pontos`);
+            } else {
+                console.log(`⚠️ FALLBACK: Resetando estado de turno`);
+                ballsPottedThisTurn = [];
+                firstBallTouched = null;
+                shotInProgress = false;
+                turnEndScheduled = false;
+                updateUI();
+            }
+        }
+
+        function updateTargetBall() {
+            const ballColors = ['', '#ff0000', '#ffff00', '#00ff00', '#8B4513', '#0000ff', '#ff69b4', '#000000'];
+            const ballNames = ['', 'Vermelha', 'Amarela', 'Verde', 'Marrom', 'Azul', 'Rosa', 'Preta'];
+            
+            const ballCanvas = document.getElementById('ballIndicator');
+            const ballCtx = ballCanvas.getContext('2d');
+            const targetContainer = document.getElementById('targetBallContainer');
+            
+            ballCtx.clearRect(0, 0, 25, 25);
+            
+            targetContainer.classList.remove('bonus-round', 'mandatory-target');
+            
+            const isFirstTurnPhase = !firstTurnComplete && targetBallOrder === 1;
+            
+            // Store previous target to detect changes
+            const previousTarget = targetBallOrder;
+            
+            if (bonusRound) {
+                ballCtx.beginPath();
+                ballCtx.arc(12.5, 12.5, 10, 0, Math.PI * 2);
+                ballCtx.fillStyle = '#808080';
+                ballCtx.fill();
+                
+                ballCtx.fillStyle = '#fff';
+                ballCtx.font = 'bold 12px Arial';
+                ballCtx.textAlign = 'center';
+                ballCtx.fillText('?', 12.5, 16);
+                
+                document.getElementById('targetBall').textContent = 'Rodada Bônus - Qualquer bola!';
+                targetContainer.classList.add('bonus-round');
+            } else if (targetBallOrder <= 7) {
+                ballCtx.beginPath();
+                ballCtx.arc(12.5, 12.5, 10, 0, Math.PI * 2);
+                ballCtx.fillStyle = ballColors[targetBallOrder];
+                ballCtx.fill();
+                
+                ballCtx.beginPath();
+                ballCtx.arc(9, 9, 3, 0, Math.PI * 2);
+                ballCtx.fillStyle = 'rgba(255, 255, 255, 0.6)';
+                ballCtx.fill();
+
+                if (isFirstTurnPhase) {
+                    document.getElementById('targetBall').textContent = `PRIMEIRA TACADA: ${ballNames[targetBallOrder]} (${firstTurnAttempts}/3 tentativas)`;
+                } else if (mustHitTargetNext) {
+                    document.getElementById('targetBall').textContent = `OBRIGATÓRIO: ${ballNames[targetBallOrder]} (${targetBallOrder} pontos)`;
+                    targetContainer.classList.add('mandatory-target');
+                } else {
+                    document.getElementById('targetBall').textContent = `${ballNames[targetBallOrder]} (${targetBallOrder} pontos)`;
+                }
+            } else {
+                ballCtx.fillStyle = '#fff';
+                ballCtx.font = '12px Arial';
+                ballCtx.textAlign = 'center';
+                ballCtx.fillText('✓', 12.5, 16);
+                document.getElementById('targetBall').textContent = 'Todas as bolas!';
+            }
+            
+            // Reset shots when target ball changes (but not in bonus or first turn)
+            // Check if we actually changed target balls (not just updating display)
+            if (!bonusRound && firstTurnComplete && targetBallOrder > previousTarget) {
+                remainingShots = 3;
+                console.log(`💖 Tacadas resetadas para nova bola da vez (${targetBallOrder})`);
+            }
+        }
+
+        function drawTable() {
+            ctx.fillStyle = '#8B4513';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            ctx.fillStyle = '#1a5e20';
+            ctx.fillRect(28.75, 28.75, canvas.width - 57.5, canvas.height - 57.5);
+            
+            for (let i = 0; i < pockets.length; i++) {
+                const pocket = pockets[i];
+                ctx.beginPath();
+                ctx.arc(pocket.x, pocket.y, pocket.radius, 0, Math.PI * 2);
+                ctx.fillStyle = '#000';
+                ctx.fill();
+                ctx.strokeStyle = '#8B4513';
+                ctx.lineWidth = 3;
+                ctx.stroke();
+            }
+
+            ctx.strokeStyle = '#fff';
+            ctx.lineWidth = 2;
+            ctx.setLineDash([]);
+            
+            ctx.beginPath();
+            ctx.arc(230, canvas.height / 2, 92, Math.PI / 2, 3 * Math.PI / 2);
+            ctx.lineTo(230, canvas.height / 2 + 92);
+            ctx.stroke();
+        }
+
+        function areAllBallsStopped() {
+            const activeBalls = balls.filter(ball => !ball.inPocket);
+            return activeBalls.every(ball => Math.abs(ball.vx) < MIN_SPEED && Math.abs(ball.vy) < MIN_SPEED);
+        }
+
+        function drawAimLine() {
+            if (!aimLine.start || !aimLine.end || !areAllBallsStopped() || positioning || activePositioning) return;
+
+            // Don't draw aim line when trajectory preview is active
+            if (trajectoryPreviewActive) return;
+
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.7)';
+            ctx.lineWidth = 2;
+            ctx.setLineDash([5, 5]);
+            ctx.beginPath();
+            ctx.moveTo(aimLine.start.x, aimLine.start.y);
+            ctx.lineTo(aimLine.end.x, aimLine.end.y);
+            ctx.stroke();
+            ctx.setLineDash([]);
+        }
+
+        function drawTrajectoryPreview() {
+            if (!trajectoryPreviewActive || !predictedTrajectory.whiteBallTrajectory) return;
+
+            const trajectory = predictedTrajectory.whiteBallTrajectory;
+            
+            // Draw white ball trajectory
+            ctx.strokeStyle = 'rgba(255, 255, 0, 0.8)';
+            ctx.lineWidth = 3;
+            ctx.setLineDash([8, 4]);
+            ctx.beginPath();
+            
+            if (trajectory.length > 0) {
+                ctx.moveTo(trajectory[0].x, trajectory[0].y);
+                for (let i = 1; i < trajectory.length; i++) {
+                    ctx.lineTo(trajectory[i].x, trajectory[i].y);
+                }
+            }
+            ctx.stroke();
+
+            // Draw collision point if hit a ball
+            if (predictedTrajectory.collisionPoint && predictedTrajectory.hitBall) {
+                const collision = predictedTrajectory.collisionPoint;
+                
+                // Highlight collision point
+                ctx.beginPath();
+                ctx.arc(collision.x, collision.y, 8, 0, Math.PI * 2);
+                ctx.fillStyle = 'rgba(255, 0, 0, 0.8)';
+                ctx.fill();
+                
+                // Draw hit ball trajectory
+                if (predictedTrajectory.hitBallTrajectory && predictedTrajectory.hitBallTrajectory.whiteBallTrajectory) {
+                    const hitTrajectory = predictedTrajectory.hitBallTrajectory.whiteBallTrajectory;
+                    
+                    ctx.strokeStyle = 'rgba(0, 255, 255, 0.8)';
+                    ctx.lineWidth = 2;
+                    ctx.setLineDash([6, 3]);
+                    ctx.beginPath();
+                    
+                    if (hitTrajectory.length > 0) {
+                        ctx.moveTo(predictedTrajectory.hitBall.x, predictedTrajectory.hitBall.y);
+                        for (let point of hitTrajectory) {
+                            ctx.lineTo(point.x, point.y);
+                        }
+                    }
+                    ctx.stroke();
+                }
+                
+                // Draw white ball continuation if it has momentum after collision
+                if (predictedTrajectory.whiteBallContinues && predictedTrajectory.whiteBallContinues.whiteBallTrajectory) {
+                    const continueTrajectory = predictedTrajectory.whiteBallContinues.whiteBallTrajectory;
+                    
+                    ctx.strokeStyle = 'rgba(255, 255, 0, 0.5)';
+                    ctx.lineWidth = 2;
+                    ctx.setLineDash([4, 4]);
+                    ctx.beginPath();
+                    
+                    if (continueTrajectory.length > 0) {
+                        ctx.moveTo(collision.x, collision.y);
+                        for (let point of continueTrajectory) {
+                            ctx.lineTo(point.x, point.y);
+                        }
+                    }
+                    ctx.stroke();
+                }
+            }
+
+            // Reset line dash
+            ctx.setLineDash([]);
+        }
+
+        function drawHearts() {
+            if (bonusRound) return; // Don't show hearts in bonus round
+            
+            const startX = 90;
+            const y = 6;
+            
+            for (let i = 0; i < 3; i++) {
+                const x = startX + (i * 40);
+                const filled = i < remainingShots;
+                
+                ctx.save();
+                ctx.fillStyle = filled ? '#ff0000' : 'rgba(255, 0, 0, 0.2)';
+                ctx.strokeStyle = '#8B0000';
+                ctx.lineWidth = 2;
+                
+                // Draw heart shape - MODIFICADO para ficar mais gordinho
+                ctx.beginPath();
+                ctx.moveTo(x, y + 4);  // Menos altura
+                ctx.bezierCurveTo(x, y - 1, x - 9, y - 1, x - 9, y + 4);  // Mais largo
+                ctx.bezierCurveTo(x - 9, y + 10, x, y + 15, x, y + 15);   // Menos alto
+                ctx.bezierCurveTo(x, y + 15, x + 9, y + 10, x + 9, y + 4); // Mais largo
+                ctx.bezierCurveTo(x + 9, y - 1, x, y - 1, x, y + 4);      // Mais largo
+                
+                if (filled) {
+                    ctx.fill();
+                }
+                ctx.stroke();
+                ctx.restore();
+            }
+        }
+
+        function updatePhysics() {
+            if (positioning || activePositioning) return;
+            
+            const activeBalls = balls.filter(ball => !ball.inPocket);
+            const wasMoving = activeBalls.some(ball => Math.abs(ball.vx) > MIN_SPEED || Math.abs(ball.vy) > MIN_SPEED);
+            
+            for (let ball of balls) {
+                ball.update();
+            }
+
+            for (let i = 0; i < balls.length; i++) {
+                for (let j = i + 1; j < balls.length; j++) {
+                    if (balls[i].collidesWith(balls[j])) {
+                        balls[i].resolveCollision(balls[j]);
+                    }
+                }
+            }
+
+            // FIXED: White ball has absolute priority - always check and process immediately
+            if (whiteBall().inPocket && !turnEndScheduled && !whiteBallPottedThisTurn) {
+                console.log(`🚨 WHITE BALL POTTED: Marked for processing when balls stop`);
+                whiteBallPottedThisTurn = true; // Apenas marcar, não processar ainda
+                // Remover completamente o setTimeout e shotInProgress = false
+            }
+
+            const isNowStopped = activeBalls.every(ball => Math.abs(ball.vx) < MIN_SPEED && Math.abs(ball.vy) < MIN_SPEED);
+            
+            // Regular turn processing for colored balls (only if white ball is safe)
+            if (shotInProgress && !turnEndScheduled) {
+              if ((wasMoving && isNowStopped) || ballsPottedThisTurn.length > 0 || (whiteBallPottedThisTurn && isNowStopped)) {
+                    console.log(`🎯 PHYSICS: All balls stopped OR balls were potted, calling processGameTurn()`);
+                    setTimeout(() => {
+                        processGameTurn();
+                    }, 10);
+                }
+            }
+            
+            // Backup timeout (only if white ball is safe)
+            if (shotInProgress && shotStartTime && (Date.now() - shotStartTime) > 10000 && !turnEndScheduled && !whiteBall().inPocket) {
+                console.log(`⏰ BACKUP: Forcing turn end after 10 seconds`);
+                setTimeout(() => {
+                    processGameTurn();
+                }, 10);
+            }
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            drawTable();
+            for (let ball of balls) {
+                ball.draw();
+            }
+            drawAimLine();
+            drawTrajectoryPreview();
+            drawHearts();
+        }
+
+        function updateUI() {
+            document.getElementById('score').textContent = score;
+
+            if (gameStarted && !gameFinished) {
+                const elapsed = (Date.now() - startTime) / 1000;
+                const minutes = Math.floor(elapsed / 60);
+                const seconds = Math.floor(elapsed % 60);
+                document.getElementById('timer').textContent = 
+                    `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+            }
+        }
+
+        function checkWin() {
+            const remaining = balls.filter(ball => !ball.inPocket && !ball.isWhite).length;
+            if (remaining === 0) {
+                gameFinished = true;
+                const finalTime = document.getElementById('timer').textContent;
+                document.getElementById('finalTime').textContent = finalTime;
+                document.getElementById('finalScore').textContent = score;
+                document.getElementById('gameOver').style.display = 'block';
+                console.log(`🎉 GAME WON! Final score: ${score}, Time: ${finalTime}`);
+            }
+        }
+
+        function startPositioning() {
+            activePositioning = true;
+            whiteBall().x = 172.5;
+            whiteBall().y = 230;
+            whiteBall().vx = 0;
+            whiteBall().vy = 0;
+            whiteBall().inPocket = false;
+            document.getElementById('initialPosition').style.display = 'none';
+            console.log(`🎯 White ball positioning activated - ball at (172.5, 230)`);
+        }
+
+        function showWhiteBallPositioning(isInitial = true, reason = 'potted') {
+            positioning = true;
+            activePositioning = false;
+            
+            if (!isInitial) {
+                whiteBall().x = 150;
+                whiteBall().y = 200;
+                whiteBall().vx = 0;
+                whiteBall().vy = 0;
+                whiteBall().inPocket = false;
+                console.log(`🎯 White ball repositioned for player placement at (150, 200)`);
+            }
+            
+            const positionDialog = document.getElementById('initialPosition');
+            const titleElement = positionDialog.querySelector('h2');
+            const textElement = positionDialog.querySelector('p');
+            
+            if (isInitial) {
+                titleElement.textContent = 'Posicione a Bola Branca';
+                textElement.textContent = 'Escolha a posição inicial da bola branca dentro do semicírculo';
+            } else if (reason === 'indirect') {
+                titleElement.textContent = 'Reposicione a Bola Branca';
+                textElement.textContent = 'Você tocou em outra bola antes de encaçapar a bola da vez! Posicione a bola branca dentro do semicírculo';
+            } else {
+                titleElement.textContent = 'Reposicione a Bola Branca';
+                textElement.textContent = 'A bola branca foi encaçapada! Posicione-a novamente dentro do semicírculo';
+            }
+            
+            positionDialog.style.display = 'block';
+        }
+
+        function startGameAfterPositioning() {
+            positioning = false;
+            activePositioning = false;
+            whiteBall().inPocket = false;
+            whiteBall().vx = 0;
+            whiteBall().vy = 0;
+            
+            // CORREÇÃO: Garantir que TODAS as bolas estejam paradas
+            for (let ball of balls) {
+                if (!ball.inPocket) {
+                    ball.vx = 0;
+                    ball.vy = 0;
+                }
+            }
+            
+            console.log(`🔧 FIX: All ball velocities reset to zero after repositioning`);
+            
+            if (!gameStarted) {
+                gameStarted = true;
+                startTime = Date.now();
+                console.log(`🎮 Game started!`);
+            } else {
+                console.log(`🔄 White ball repositioned, game continues`);
+            }
+        }
+
+        function resetGame() {
+            gameStarted = false;
+            gameFinished = false;
+            positioning = true;
+            activePositioning = false;
+            bonusRound = false;
+            mustHitTargetNext = false;
+            firstTurnAttempts = 0;
+            firstTurnComplete = false;
+            startTime = null;
+            score = 0;
+            power = 0;
+            isPowerBuilding = false;
+            targetBallOrder = 1;
+            firstBallTouched = null;
+            ballsPottedThisTurn = [];
+            shotInProgress = false;
+            turnEndScheduled = false;
+            remainingShots = 3;
+            shotStartTime = null;
+
+            // Clear trajectory preview
+            trajectoryPreviewActive = false;
+            rightMouseDown = false;
+            predictedTrajectory = [];
+
+            initializeBalls();
+            document.getElementById('gameOver').style.display = 'none';
+            showWhiteBallPositioning(true);
+            updateTargetBall();
+            updateUI();
+            console.log(`🔄 Game reset - Trajectory preview system ready`);
+        }
+
+        // Event listeners
+        canvas.addEventListener('mousemove', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            mousePos.x = e.clientX - rect.left;
+            mousePos.y = e.clientY - rect.top;
+
+            if (activePositioning) {
+                whiteBall().x = mousePos.x;
+                whiteBall().y = mousePos.y;
+                canvas.style.cursor = isInsideD(mousePos.x, mousePos.y) ? 'pointer' : 'not-allowed';
+            } else if (!positioning && areAllBallsStopped() && !whiteBall().inPocket && !isPowerBuilding) {
+                // Always allow aiming
+                aimLine.start = { x: whiteBall().x, y: whiteBall().y };
+                aimLine.end = calculateLineToTableEdge(whiteBall().x, whiteBall().y, mousePos.x, mousePos.y);
+                
+                // Calculate trajectory preview if right mouse is down
+                if (rightMouseDown) {
+                    calculateTrajectoryPreview();
+                }
+                
+                canvas.style.cursor = 'pointer';
+            }
+        });
+
+        canvas.addEventListener('mouseenter', (e) => {
+            if (activePositioning) {
+                const rect = canvas.getBoundingClientRect();
+                mousePos.x = e.clientX - rect.left;
+                mousePos.y = e.clientY - rect.top;
+                whiteBall().x = mousePos.x;
+                whiteBall().y = mousePos.y;
+                console.log(`🎯 Mouse entered canvas during positioning - ball moved to (${mousePos.x}, ${mousePos.y})`);
+            }
+        });
+
+        canvas.addEventListener('mouseleave', () => {
+            // Clear trajectory preview when mouse leaves
+            if (rightMouseDown) {
+                rightMouseDown = false;
+                trajectoryPreviewActive = false;
+                predictedTrajectory = [];
+            }
+        });
+
+        canvas.addEventListener('click', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+
+            if (activePositioning) {
+                if (isInsideD(x, y)) {
+                    whiteBall().x = x;
+                    whiteBall().y = y;
+                    whiteBall().originalX = x;
+                    whiteBall().originalY = y;
+                    startGameAfterPositioning();
+                }
+            }
+        });
+
+        // Right mouse button events for trajectory preview
+        canvas.addEventListener('mousedown', (e) => {
+            if (e.button === 0 && !isPowerBuilding && !positioning && !activePositioning && areAllBallsStopped() && !whiteBall().inPocket) {
+                // Left button - start power building
+                e.preventDefault();
+                isPowerBuilding = true;
+                power = 0;
+                console.log(`🚀 Power building started`);
+            } else if (e.button === 2 && !positioning && !activePositioning && areAllBallsStopped() && !whiteBall().inPocket && !isPowerBuilding) {
+                // Right button - start trajectory preview
+                e.preventDefault();
+                rightMouseDown = true;
+                trajectoryPreviewActive = true;
+                calculateTrajectoryPreview();
+                
+                console.log(`🎯 Trajectory preview activated with 50% power indicator`);
+            }
+        });
+
+        canvas.addEventListener('mouseup', (e) => {
+            if (e.button === 0 && isPowerBuilding && !positioning && !activePositioning) {
+                // Left button - shoot
+                e.preventDefault();
+                isPowerBuilding = false;
+
+                if (aimLine.start && aimLine.end) {
+                    const dx = aimLine.end.x - aimLine.start.x;
+                    const dy = aimLine.end.y - aimLine.start.y;
+                    const distance = Math.sqrt(dx * dx + dy * dy);
+                    
+                    if (distance > 0) {
+                        ballsPottedThisTurn = [];
+                        firstBallTouched = null;
+                        shotInProgress = true;
+                        turnEndScheduled = false;
+                        shotStartTime = Date.now();
+                        whiteBallPottedThisTurn = false;
+                        
+                        const forceMultiplier = power * 0.3;
+                        const finalVx = (dx / distance) * forceMultiplier;
+                        const finalVy = (dy / distance) * forceMultiplier;
+                        
+                        whiteBall().vx = finalVx;
+                        whiteBall().vy = finalVy;
+                        
+                        console.log(`🚀 SHOT STARTED: Power=${power}%, Target=${targetBallOrder}, FirstTurn=${!firstTurnComplete ? `${firstTurnAttempts}/3` : 'Complete'}`);
+                    }
+                }
+
+                power = 0;
+                aimLine.start = null;
+                aimLine.end = null;
+            } else if (e.button === 2) {
+                // Right button - stop trajectory preview
+                e.preventDefault();
+                rightMouseDown = false;
+                trajectoryPreviewActive = false;
+                predictedTrajectory = [];
+                customPreviewPower = 50;
+                console.log(`🎯 Trajectory preview deactivated`);
+            }
+        });
+
+        // Prevent context menu on right click
+        canvas.addEventListener('contextmenu', (e) => {
+            e.preventDefault();
+        });
+
+        document.addEventListener('keydown', (e) => {
+            if (rightMouseDown) {
+                if (e.key === 'x') {
+                    customPreviewPower = Math.min(100, customPreviewPower + 1);
+                    calculateTrajectoryPreview();
+                }
+                if (e.key === 'z') {
+                    customPreviewPower = Math.max(1, customPreviewPower - 1);
+                    calculateTrajectoryPreview();
+                }
+            }
+        });
+
+        // Game loop
+        function gameLoop() {
+            if (isPowerBuilding && !positioning && !activePositioning) {
+                // FIXED: Slower power building - was +2, now +0.8 per frame
+                const oldPower = power;
+                power = Math.min(power + 0.6, rightMouseDown ? customPreviewPower : 100);
+                
+                if (Math.floor(power / 20) > Math.floor(oldPower / 20)) {
+                    console.log(`⚡ Power building: ${Math.floor(power / 20) * 20}%`);
+                }
+                
+                document.getElementById('powerFill').style.width = power + '%';
+            } else {
+                document.getElementById('powerFill').style.width = '0%';
+            }
+
+            updatePhysics();
+            draw();
+            updateUI();
+            
+            requestAnimationFrame(gameLoop);
+        }
+
+        // Start the game
+        initializeBalls();
+        updateTargetBall();
+        updateUI();
+        showWhiteBallPositioning(true);
+        gameLoop();
+    </script>
+</body>
+</html>
